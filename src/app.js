@@ -6,6 +6,7 @@ var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
 var ADODB = require('node-adodb');
 var moment = require('moment');
+var provider = 'Microsoft.Jet.OLEDB.4.0';
 var mdbFilePath = 'D:/GSV/ICGData.mdb';
 //mdbFilePath = 'C:/Users/dipesh/Desktop/ICGData/ICGData.mdb';
 
@@ -16,8 +17,9 @@ app.use(cookieParser());
 app.use(express.static(__dirname));
 
 app.get('/api/chdata/latest', function (req, res) {
-  var connection = ADODB.open('Provider=Microsoft.Jet.OLEDB.4.0;Data Source=' + mdbFilePath + ';');
-  var query = 'SELECT * FROM ChData WHERE ChData.SampleTime in (SELECT Max(t.SampleTime)FROM ChData t where t.UnitID = 342 GROUP BY t.UnitID)';
+  var id = req.query.id;
+  var connection = ADODB.open('Provider='+ provider +';Data Source=' + mdbFilePath + ';');
+  var query = 'SELECT * FROM ChData WHERE ChData.SampleTime in (SELECT Max(t.SampleTime)FROM ChData t where t.UnitID = ' + id +' GROUP BY t.UnitID)';
 
   connection
     .query(query)
@@ -33,8 +35,26 @@ app.get('/api/chdata/latest', function (req, res) {
 });
 
 app.get('/api/chdata', function (req, res) {
-  var connection = ADODB.open('Provider=Microsoft.Jet.OLEDB.4.0;Data Source=' + mdbFilePath + ';');
-  var query = 'SELECT Max(t.SampleTime) as maxDate FROM ChData t Where t.UnitID = 342 GROUP BY t.UnitID ';
+  var connection = ADODB.open('Provider='+ provider +';Data Source=' + mdbFilePath + ';');
+  var query = 'SELECT * FROM ChData WHERE ChData.SampleTime in (SELECT Max(t.SampleTime)FROM ChData t Where t.UnitID = 342 GROUP BY t.UnitID)';
+
+  connection
+    .query(query)
+    .on('done', function(data) {
+      // console.log(data);
+      res.send(data);
+    })
+    .on('fail', function(error) {
+      console.log("Error to load latest data");
+      res.send("Failed...");
+    });
+
+});
+
+app.get('/api/chdetail', function (req, res) {
+  var id = req.query.id;
+  var connection = ADODB.open('Provider='+ provider +';Data Source=' + mdbFilePath + ';');
+  var query = 'SELECT Max(t.SampleTime) as maxDate FROM ChData t Where t.UnitID = ' + id +' GROUP BY t.UnitID ';
 
   connection
     .query(query)
@@ -43,7 +63,7 @@ app.get('/api/chdata', function (req, res) {
 
       var currentDateStr = data[0].maxDate;
       // console.log(currentDate);
-      query = 'SELECT * FROM ChData WHERE ChData.SampleTime in (SELECT Max(t.SampleTime)FROM ChData t where t.UnitID = 342 GROUP BY t.UnitID)';
+      query = 'SELECT * FROM ChData WHERE ChData.SampleTime in (SELECT Max(t.SampleTime)FROM ChData t where t.UnitID = ' + id +' GROUP BY t.UnitID)';
 
       // console.log("Query = " + query);
       var currentDate = new Date(currentDateStr);
@@ -60,12 +80,12 @@ app.get('/api/chdata', function (req, res) {
         // console.log("date = " + date);
         newDateTime = date.format("MM/DD/YYYY hh:mm:ss A");
 
-        query = query + ' Or ChData.SampleTime in (SELECT Min(t.SampleTime) FROM ChData t where t.SampleTime Between #'+ oldTime +'# And #'+ newDateTime +'# AND  t.UnitID = 342 GROUP BY t.UnitID)';
+        query = query + ' Or ChData.SampleTime in (SELECT Min(t.SampleTime) FROM ChData t where t.SampleTime Between #'+ oldTime +'# And #'+ newDateTime +'# AND  t.UnitID = ' + id +' GROUP BY t.UnitID)';
         // console.log(" " + oldTime + "   AND   " + newDateTime + "<br>");
         oldTime = newDateTime;
       }
 
-      query = query + ' AND ChData.UnitID = 342 ORDER BY ChData.SampleTime DESC';
+      query = query + ' AND ChData.UnitID = ' + id +' ORDER BY ChData.SampleTime DESC';
 
       //console.log("Query = " + query);
 
